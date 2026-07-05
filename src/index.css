@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+/* Custom scrollbar for dark theme — thin and unobtrusive */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* IPA phonetics — clickable words */
+.ipa-word {
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ipa-word:hover {
+  background: rgba(255, 255, 255, 0.045);
+  color: inherit;
+}
+
+/* IPA tooltip */
+.ipa-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  margin-top: -6px;
+  padding: 4px 10px;
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  z-index: 50;
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: auto;
+}
+
+.ipa-text {
+  color: #fbbf24;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+}
+
+.pronunciation-respelling {
+  color: #f87171;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.ipa-not-found {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.inline-pronunciation-cluster {
+  display: inline;
+}
+
+.inline-ipa {
+  color: #fbbf24;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  opacity: 1;
+  white-space: nowrap;
+}
+
+.inline-pronunciation-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 0.28em;
+  margin-right: 0.12em;
+  transform: translateY(-0.1em);
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.inline-respelling {
+  display: inline-flex;
+  align-items: baseline;
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.09);
+  border: 1px solid rgba(251, 113, 133, 0.23);
+  border-radius: 5px;
+  padding: 1px 5px 2px;
+  font-size: 1em;
+  line-height: 1.15;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.inline-respelling-simple {
+  color: #d4d4d8;
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.11);
+  font-size: 1em;
+  font-weight: 650;
+}
+
+.respelling-divider {
+  margin: 0 1px;
+  opacity: 0.48;
+}
+
+.respelling-stress {
+  color: #fb7185;
+  font-weight: 800;
+}

@@ -1,0 +1,7 @@
+{
+  "name": "MacTranslate Pro",
+  "description": "A real-time bilingual AI translation tool for Mac with streaming output and microphone selection.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
