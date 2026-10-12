@@ -4,8 +4,10 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { AlertCircle, LoaderCircle, Mic, MicOff, RefreshCw, ChevronDown, Settings, Volume2 } from 'lucide-react';
+import { AlertCircle, Download, LoaderCircle, Mic, MicOff, RefreshCw, Settings, Volume2 } from 'lucide-react';
 import { Waveform } from './components/Waveform';
+import { Brand } from './components/Brand';
+import { downloadTranscript } from './services/transcriptExport';
 import { TranslationPanel } from './components/TranslationPanel';
 import { useMicrophone } from './hooks/useMicrophone';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
@@ -58,6 +60,7 @@ export default function App() {
   const dailyKeyRef = useRef(getTodayKey());
   const [dailySeconds, setDailySeconds] = useState(() => loadDailySeconds(dailyKeyRef.current));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const handleCloseSettings = useCallback(() => setSettingsOpen(false), []);
   const [appSettings, setAppSettings] = useState<AppSettings>(loadSettings);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [selectedAudioOutputId, setSelectedAudioOutputId] = useState(() => {
@@ -473,165 +476,68 @@ export default function App() {
   }, [selectedDeviceId, stop]);
 
   return (
-    <div
-      className="flex h-screen flex-col overflow-hidden bg-[#050506] text-zinc-100"
-      style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
-    >
-      {/* Compact toolbar */}
-      <header className="flex items-center justify-between border-b border-white/[0.06] bg-[#070708] px-3 py-1.5">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-zinc-500 tracking-tight">MacTranslate Pro</span>
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500" title="当前语音识别引擎">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            {getAsrProviderMeta(appSettings.asrProvider).shortName}
-          </div>
-          <div className="hidden sm:flex items-center gap-3 ml-2 text-[11px] text-zinc-500 tabular-nums">
-            <span title="当前会话时长">会话 {formatTime(sessionSeconds)}</span>
-            <span className="text-zinc-700">|</span>
-            <span title="今日累计时长">今日 {formatTime(dailySeconds)}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Waveform stream={stream} />
-
-          {/* Mic selector — compact */}
-          <div className="relative flex items-center text-[11px] text-zinc-400">
-            <select
-              className="appearance-none bg-transparent pr-4 pl-1.5 py-1 outline-none cursor-pointer max-w-[140px] truncate"
-              value={selectedDeviceId}
-              onChange={(e) => setSelectedDeviceId(e.target.value)}
-              disabled={devices.length === 0}
-            >
-              {devices.length === 0 && (
-                <option value="">No mic</option>
-              )}
-              {devices.map(d => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || `Mic ${d.deviceId.slice(0, 5)}`}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-0 w-3 h-3 text-zinc-600 pointer-events-none" />
-          </div>
-
-          <div className="relative hidden min-[900px]:flex items-center text-[11px] text-zinc-400" title="单词发音输出设备">
-            <Volume2 className="w-3 h-3 text-zinc-600 mr-1" />
-            <select
-              className="appearance-none bg-transparent pr-4 pl-1 py-1 outline-none cursor-pointer max-w-[150px] truncate"
-              value={selectedAudioOutputId}
-              onChange={(e) => setSelectedAudioOutputId(e.target.value)}
-            >
-              <option value="">Default output</option>
-              {audioOutputs
-                .filter((device) => device.deviceId && device.deviceId !== 'default')
-                .map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label || `Output ${device.deviceId.slice(0, 5)}`}
-                  </option>
-                ))}
-            </select>
-            <ChevronDown className="absolute right-0 w-3 h-3 text-zinc-600 pointer-events-none" />
-          </div>
-
-          <div className="hidden min-[900px]:flex items-center gap-1.5 text-[11px] text-zinc-500" title="单词发音音量">
-            <Volume2 className="w-3 h-3 text-zinc-600" />
-            <input
-              type="range"
-              min="0.01"
-              max="0.05"
-              step="0.01"
-              value={pronunciationVolume}
-              onChange={(e) => setPronunciationVolume(Number(e.target.value))}
-              className="w-16 accent-blue-500"
-              aria-label="单词发音音量"
-            />
-            <span className="w-7 text-right tabular-nums">{Math.round(pronunciationVolume * 100)}%</span>
-          </div>
-
-          <div className="w-px h-4 bg-white/10"></div>
-
-          {/* Settings button */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
-            title="设置"
-          >
-            <Settings className="h-3.5 w-3.5" />
-          </button>
-
-          {/* Reset button */}
-          <button
-            type="button"
-            onClick={() => void handleResetSession()}
-            disabled={serverStatus === 'checking'}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-40"
-            title="新对话"
-          >
-            <RefreshCw className="h-3 w-3" />
-            重置
-          </button>
-
-          {/* Start/Stop button */}
-          <button
-            onClick={handleStartStop}
-            disabled={(!isListening && isConnecting) || serverStatus === 'checking'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              isListening
-                ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-          >
-            {isConnecting ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-            {connectionState === 'reconnecting' ? '重连中...' : isConnecting ? '连接中...' : isListening ? '停止' : '开始'}
-          </button>
+    <div className="workspace">
+      <header className="workspace-header">
+        <Brand />
+        <div className="header-actions">
+          <span className={`status-pill ${isListening ? 'connected' : ''}`}>
+            <span className={`status-dot ${isListening ? 'connected' : serverStatus === 'ready' ? 'ready' : ''}`} />
+            {isListening ? 'Listening' : isConnecting ? 'Connecting' : serverStatus === 'ready' ? 'Ready' : serverStatus === 'checking' ? 'Checking server' : serverStatus === 'needs-config' ? 'Setup required' : 'Server offline'}
+          </span>
+          <a href="/demo" target="_blank" rel="noreferrer" className="control-button">View sample</a>
+          <button onClick={() => setSettingsOpen(true)} className="control-button" title="设置" aria-label="Open settings"><Settings size={15} /><span className="button-label">Settings</span></button>
         </div>
       </header>
 
-      {/* Error banner */}
-      {errorMessage && (
-        <div className="flex items-center gap-2 px-4 py-2 text-xs text-red-300 bg-red-500/10 border-b border-red-500/20">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          {errorMessage}
+      <div className="session-toolbar">
+        <div className="session-context">
+          <span className="eyebrow">LIVE SESSION</span>
+          <span className="session-title">English ↔ 中文</span>
+          <span className="muted-detail tabular-nums" title="当前会话时长">{formatTime(sessionSeconds)}</span>
         </div>
-      )}
-
-      {connectionState === 'reconnecting' && !errorMessage && (
-        <div className="flex items-center gap-2 px-4 py-2 text-xs text-amber-200 bg-amber-500/10 border-b border-amber-500/20">
-          <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin" />
-          连接短暂中断，正在尝试 1 秒内自动恢复；当前对话上下文会继续保留。
+        <div className="toolbar-actions">
+          <button className="control-button" disabled={leftMessages.length + rightMessages.length === 0} onClick={() => downloadTranscript([...leftMessages, ...rightMessages])}><Download size={14} /><span>Export</span></button>
+          <button type="button" onClick={() => void handleResetSession()} disabled={serverStatus === 'checking'} className="control-button" title="新对话"><RefreshCw size={14} />New session</button>
+          <button onClick={handleStartStop} disabled={(!isListening && isConnecting) || serverStatus === 'checking'} className={isListening ? 'primary-button stop-button' : 'primary-button'}>
+            {isConnecting ? <LoaderCircle size={15} className="animate-spin" /> : isListening ? <MicOff size={15} /> : <Mic size={15} />}
+            {connectionState === 'reconnecting' ? 'Reconnecting…' : isConnecting ? 'Connecting…' : isListening ? 'Stop session' : 'Start session'}
+          </button>
         </div>
-      )}
+      </div>
 
-      {/* Panels — maximized space */}
-      <main className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 min-[800px]:grid-cols-2 p-1 gap-1">
-        <TranslationPanel
-          title="English → 中文"
-          messages={leftMessages}
-          liveText={liveLeft}
-          isListening={isListening}
-          compact
-          autoPronounce
-          showIpa
-        />
+      <div className="audio-toolbar">
+        <label className="device-control"><Mic size={13} /><span className="sr-only">Microphone</span>
+          <select value={selectedDeviceId} onChange={(e) => setSelectedDeviceId(e.target.value)} disabled={devices.length === 0}>
+            {devices.length === 0 && <option value="">Microphone not selected</option>}
+            {devices.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || `Mic ${device.deviceId.slice(0, 5)}`}</option>)}
+          </select>
+        </label>
+        <div className="audio-meter"><Waveform stream={stream} /></div>
+        <label className="device-control output-control"><Volume2 size={13} /><span className="sr-only">Pronunciation output device</span>
+          <select value={selectedAudioOutputId} onChange={(e) => setSelectedAudioOutputId(e.target.value)}>
+            <option value="">Default output</option>
+            {audioOutputs.filter(device => device.deviceId && device.deviceId !== 'default').map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || `Output ${device.deviceId.slice(0, 5)}`}</option>)}
+          </select>
+        </label>
+        <label className="volume-control"><span>Word audio</span><input type="range" min="0.01" max="0.05" step="0.01" value={pronunciationVolume} onChange={(e) => setPronunciationVolume(Number(e.target.value))} aria-label="单词发音音量" /><span className="tabular-nums">{Math.round(pronunciationVolume * 100)}%</span></label>
+        <span className="provider-label">{getAsrProviderMeta(appSettings.asrProvider).shortName} <span>·</span> {appSettings.translationModel}</span>
+      </div>
 
-        <TranslationPanel
-          title="中文 → English"
-          messages={rightMessages}
-          liveText={liveRight}
-          isListening={isListening}
-          compact
-          autoPronounce
-          showIpa
-        />
+      {serverStatus === 'needs-config' && !errorMessage && <div className="workspace-notice"><AlertCircle size={15} /><span>Live interpretation needs provider credentials. <a href="/demo" target="_blank" rel="noreferrer">Explore the offline sample</a> to preview the workspace.</span></div>}
+      {serverStatus === 'offline' && !errorMessage && <div className="workspace-notice"><AlertCircle size={15} /><span>The local server is unavailable. Start the server, then reload this page.</span></div>}
+      {errorMessage && <div role="alert" className="workspace-notice error-notice"><AlertCircle size={15} /><span>{errorMessage}</span></div>}
+      {connectionState === 'reconnecting' && !errorMessage && <div role="status" className="workspace-notice"><LoaderCircle size={15} className="animate-spin" /><span>Reconnecting. The current conversation context will be retained.</span></div>}
+
+      <main className="transcript-grid">
+        <TranslationPanel title="English → 中文" messages={leftMessages} liveText={liveLeft} isListening={isListening} compact autoPronounce showIpa />
+        <TranslationPanel title="中文 → English" messages={rightMessages} liveText={liveRight} isListening={isListening} compact autoPronounce showIpa />
       </main>
 
-      <SettingsModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        currentSettings={appSettings}
-        onSave={handleSettingsSave}
-      />
+      <footer className="workspace-footer">
+        <span>Click an English word for pronunciation</span>
+        <span className="tabular-nums">{leftMessages.length + rightMessages.length} entries <span className="footer-separator">·</span> Today {formatTime(dailySeconds)}</span>
+      </footer>
+      <SettingsModal isOpen={settingsOpen} onClose={handleCloseSettings} currentSettings={appSettings} onSave={handleSettingsSave} />
     </div>
   );
 }
