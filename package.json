@@ -1,7 +1,7 @@
 {
   "name": "mactranslate-pro",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -9,7 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "demo": "vite --host 127.0.0.1 --port 4173 --open /demo",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@soniox/node": "^1.1.2",

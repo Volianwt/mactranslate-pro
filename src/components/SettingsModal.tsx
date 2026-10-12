@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import {
   ASR_PROVIDERS,
@@ -15,10 +15,10 @@ export type AppSettings = {
 const STORAGE_KEY = 'mtp_settings';
 
 const TRANSLATION_MODELS = [
-  { id: 'gpt-5.4', name: 'GPT-5.4', desc: '最强精度，医疗推荐', price: 'Input $2.50 / Output $15.00' },
-  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', desc: '速度更快，性价比高', price: 'Input $0.75 / Output $4.50' },
-  { id: 'gpt-5.4-nano', name: 'GPT-5.4 Nano', desc: '最便宜，简单任务', price: 'Input $0.20 / Output $1.25' },
-  { id: 'gpt-4o', name: 'GPT-4o', desc: '上一代旗舰', price: 'Input $2.50 / Output $10.00' },
+  { id: 'gpt-5.4', name: 'GPT-5.4', desc: 'General translation' },
+  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', desc: 'Default selection' },
+  { id: 'gpt-5.4-nano', name: 'GPT-5.4 Nano', desc: 'Compact model' },
+  { id: 'gpt-4o', name: 'GPT-4o', desc: 'Alternative model' },
 ];
 
 export function loadSettings(): AppSettings {
@@ -61,6 +61,7 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
     qwen: '',
     soniox: '',
   });
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [openaiTest, setOpenaiTest] = useState<TestStatus>('idle');
   const [openaiMsg, setOpenaiMsg] = useState('');
 
@@ -74,6 +75,33 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
       setOpenaiMsg('');
     }
   }, [isOpen, currentSettings]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    const getFocusable = (): HTMLElement[] => Array.from(dialog?.querySelectorAll('button:not(:disabled), input:not(:disabled), a[href]') || []) as HTMLElement[];
+    getFocusable()[0]?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Tab') return;
+      const controls = getFocusable();
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -94,12 +122,12 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
         setAsrTests((prev) => ({ ...prev, [providerId]: 'error' }));
         setAsrMessages((prev) => ({
           ...prev,
-          [providerId]: data.error || '连接失败',
+          [providerId]: data.error || 'Connection failed',
         }));
       }
     } catch {
       setAsrTests((prev) => ({ ...prev, [providerId]: 'error' }));
-      setAsrMessages((prev) => ({ ...prev, [providerId]: '网络错误' }));
+      setAsrMessages((prev) => ({ ...prev, [providerId]: 'Network error' }));
     }
   };
 
@@ -120,14 +148,14 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
       const data = await resp.json();
       if (data.success) {
         setOpenaiTest('success');
-        setOpenaiMsg(`${data.model} 连接成功`);
+        setOpenaiMsg(`${data.model} connected`);
       } else {
         setOpenaiTest('error');
         setOpenaiMsg(data.error);
       }
     } catch (err: any) {
       setOpenaiTest('error');
-      setOpenaiMsg('网络错误');
+      setOpenaiMsg('Network error');
     }
   };
 
@@ -145,14 +173,18 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-md bg-[#14141e] border border-white/[0.08] rounded-xl shadow-2xl"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        className="mx-4 w-full max-w-md max-h-[90dvh] overflow-y-auto bg-[#101a24] border border-white/[0.08] rounded-xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-          <h2 className="text-[15px] font-semibold text-zinc-100">设置</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+          <h2 id="settings-title" className="text-[15px] font-semibold text-zinc-100">Settings</h2>
+          <button aria-label="Close settings" onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -162,8 +194,8 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-[13px] font-medium text-zinc-200">语音识别 (ASR)</h3>
-                <p className="text-[11px] text-zinc-500 mt-0.5">语音转文字引擎</p>
+                <h3 className="text-[13px] font-medium text-zinc-200">Speech recognition</h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">Choose an ASR provider</p>
               </div>
               <button
                 onClick={testCurrentAsr}
@@ -173,7 +205,7 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
                 {currentAsrTest === 'testing' ? <Loader2 className="w-3 h-3 animate-spin" /> :
                  currentAsrTest === 'success' ? <CheckCircle className="w-3 h-3 text-emerald-400" /> :
                  currentAsrTest === 'error' ? <XCircle className="w-3 h-3 text-red-400" /> : null}
-                测试
+                Test connection
               </button>
             </div>
 
@@ -210,7 +242,7 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
                   </div>
                   <div>
                     <div className="text-[13px] text-zinc-200">{p.name}</div>
-                    <div className="text-[11px] text-zinc-500">{p.desc}</div>
+                    <div className="text-[11px] text-zinc-500">{p.id === 'azure' ? 'English / Chinese · Default' : p.id === 'qwen' ? 'DashScope · Experimental' : 'Realtime ASR · Experimental'}</div>
                   </div>
                 </label>
               ))}
@@ -224,8 +256,8 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-[13px] font-medium text-zinc-200">翻译模型</h3>
-                <p className="text-[11px] text-zinc-500 mt-0.5">GPT 模型选择 · 价格为每百万 tokens</p>
+                <h3 className="text-[13px] font-medium text-zinc-200">Translation model</h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">Model availability depends on the configured account</p>
               </div>
               <button
                 onClick={testOpenai}
@@ -235,7 +267,7 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
                 {openaiTest === 'testing' ? <Loader2 className="w-3 h-3 animate-spin" /> :
                  openaiTest === 'success' ? <CheckCircle className="w-3 h-3 text-emerald-400" /> :
                  openaiTest === 'error' ? <XCircle className="w-3 h-3 text-red-400" /> : null}
-                测试
+                Test connection
               </button>
             </div>
 
@@ -271,7 +303,6 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] text-zinc-200">{m.name}</span>
-                      <span className="text-[10px] text-zinc-600 tabular-nums">{m.price}</span>
                     </div>
                     <div className="text-[11px] text-zinc-500">{m.desc}</div>
                   </div>
@@ -287,7 +318,7 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
             onClick={onClose}
             className="px-4 py-2 text-[12px] text-zinc-400 hover:text-zinc-200 transition-colors rounded-md"
           >
-            取消
+            Cancel
           </button>
           <button
             onClick={handleSave}
@@ -297,7 +328,7 @@ export const SettingsModal = memo(function SettingsModal({ isOpen, onClose, curr
                 : 'bg-white/[0.06] text-zinc-400'
             }`}
           >
-            保存
+            Save
           </button>
         </div>
       </div>

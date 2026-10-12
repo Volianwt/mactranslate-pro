@@ -18,6 +18,7 @@ interface Props {
   compact?: boolean;
   autoPronounce?: boolean;
   showIpa?: boolean;
+  pronunciationEnabled?: boolean;
 }
 
 // Regex to split text into English words and non-English segments
@@ -178,6 +179,7 @@ function ClickableText({
   className,
   autoPronounce = false,
   showIpa = true,
+  pronunciationEnabled = true,
   maxAutoPronunciations = 4,
   autoPronunciationSeen,
 }: {
@@ -185,6 +187,7 @@ function ClickableText({
   className?: string;
   autoPronounce?: boolean;
   showIpa?: boolean;
+  pronunciationEnabled?: boolean;
   maxAutoPronunciations?: number;
   autoPronunciationSeen?: Set<string>;
 }) {
@@ -199,7 +202,7 @@ function ClickableText({
   const parts = useMemo(() => text.split(WORD_SPLIT_RE), [text]);
 
   useEffect(() => {
-    if (!autoPronounce) return;
+    if (!autoPronounce || !pronunciationEnabled) return;
 
     const candidateKeys = new Set(extractPronunciationCandidates(text, maxAutoPronunciations));
     if (candidateKeys.size === 0) return;
@@ -238,7 +241,7 @@ function ClickableText({
       cancelled = true;
       scheduledLookupKeys.forEach((key) => seenLookupKeys.delete(key));
     };
-  }, [autoPronounce, autoPronunciationSeen, maxAutoPronunciations, parts, text]);
+  }, [autoPronounce, autoPronunciationSeen, maxAutoPronunciations, parts, text, pronunciationEnabled]);
 
   const handleWordClick = useCallback(async (word: string, key: string, event: React.MouseEvent) => {
     if (word.length < 2) return;
@@ -273,7 +276,7 @@ function ClickableText({
   return (
     <span>
       {parts.map((part, i) => {
-        if (ENGLISH_WORD_RE.test(part) && part.length >= 2) {
+        if (pronunciationEnabled && ENGLISH_WORD_RE.test(part) && part.length >= 2) {
           const key = `${normalizePronunciationLookupKey(part)}__${i}`;
           const inline = expanded[key] || null;
           return (
@@ -311,11 +314,13 @@ const MessageItem = memo(({
   compact = false,
   autoPronounce = false,
   showIpa = true,
+  pronunciationEnabled = true,
 }: {
   msg: Message;
   compact?: boolean;
   autoPronounce?: boolean;
   showIpa?: boolean;
+  pronunciationEnabled?: boolean;
 }) => {
   const isFinal = !msg.isTranslating;
   const showCorrected = isFinal && Boolean(msg.corrected && msg.corrected.trim() && msg.corrected !== msg.original);
@@ -324,7 +329,7 @@ const MessageItem = memo(({
     [msg.corrected, msg.original, showCorrected],
   );
   const originalClassName = compact
-    ? 'whitespace-pre-line text-zinc-500 text-[14px] leading-[1.5]'
+    ? 'whitespace-pre-line text-slate-400 text-[14px] leading-[1.6]'
     : 'whitespace-pre-line text-zinc-300/92 text-[14px] leading-[1.8]';
   const translationClassName = compact
     ? 'whitespace-pre-line text-zinc-100 text-[16px] leading-[1.5] mt-1'
@@ -335,7 +340,12 @@ const MessageItem = memo(({
   );
 
   return (
-    <div className={compact ? 'py-2' : 'py-3'}>
+    <div className={compact ? 'py-3' : 'py-4'}>
+      <div className="mb-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.1em] text-slate-500">
+        <time dateTime={new Date(msg.createdAt).toISOString()}>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</time>
+        <span aria-hidden="true">·</span>
+        <span>{msg.isTranslating ? 'Translating' : 'Translated'}</span>
+      </div>
       <div className={originalClassName}>
         {showCorrected
           ? correctedSegments.map((segment, idx) => (
@@ -344,7 +354,7 @@ const MessageItem = memo(({
                   text={segment.text}
                   className={getCorrectedSegmentClassName(segment.variant)}
                   autoPronounce={autoPronounce}
-                  showIpa={showIpa}
+                  showIpa={showIpa} pronunciationEnabled={pronunciationEnabled}
                   autoPronunciationSeen={autoPronunciationSeen}
                 />
               </React.Fragment>
@@ -353,7 +363,7 @@ const MessageItem = memo(({
               <ClickableText
                 text={msg.original}
                 autoPronounce={autoPronounce}
-                showIpa={showIpa}
+                showIpa={showIpa} pronunciationEnabled={pronunciationEnabled}
                 autoPronunciationSeen={autoPronunciationSeen}
               />
             ) : msg.original}
@@ -364,7 +374,7 @@ const MessageItem = memo(({
             <ClickableText
               text={msg.translated}
               autoPronounce={autoPronounce}
-              showIpa={showIpa}
+              showIpa={showIpa} pronunciationEnabled={pronunciationEnabled}
               autoPronunciationSeen={autoPronunciationSeen}
             />
           ) : msg.translated : null}
@@ -384,6 +394,7 @@ export const TranslationPanel = memo(function TranslationPanel({
   compact = false,
   autoPronounce = false,
   showIpa = true,
+  pronunciationEnabled = true,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -429,15 +440,22 @@ export const TranslationPanel = memo(function TranslationPanel({
   }, []);
 
   return (
-    <div className={compact
-      ? 'flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-white/[0.035] bg-[#09090c]'
-      : 'flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/[0.06] bg-[#121218]'
-    }>
+    <section aria-label={title} className="transcript-panel">
+      <div className="panel-heading">
+        <div className="flex items-center gap-3">
+          <span className="language-mark">{title.startsWith('English') ? 'EN' : '中'}</span>
+          <div>
+            <h2>{title}</h2>
+            <p>Original speech &amp; translation</p>
+          </div>
+        </div>
+        <span className="panel-count">{messages.length} {messages.length === 1 ? 'entry' : 'entries'}</span>
+      </div>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className={compact
-          ? 'min-h-0 flex-1 overflow-y-auto px-3 py-2 custom-scrollbar'
+          ? 'min-h-0 flex-1 overflow-y-auto px-5 py-2 custom-scrollbar'
           : 'min-h-0 flex-1 overflow-y-auto px-5 py-4 custom-scrollbar'
         }
         style={{ overflowAnchor: 'none' }}
@@ -450,7 +468,7 @@ export const TranslationPanel = memo(function TranslationPanel({
                 msg={msg}
                 compact={compact}
                 autoPronounce={autoPronounce}
-                showIpa={showIpa}
+                showIpa={showIpa} pronunciationEnabled={pronunciationEnabled}
               />
             ))}
           </div>
@@ -458,27 +476,26 @@ export const TranslationPanel = memo(function TranslationPanel({
           {liveText && (
             <div className={compact ? 'py-2 border-t border-white/[0.04]' : 'py-3 border-t border-white/[0.04]'}>
               <div className={compact
-                ? 'whitespace-pre-line text-zinc-500 text-[14px] leading-[1.5]'
+                ? 'whitespace-pre-line text-slate-400 text-[14px] leading-[1.6]'
                 : 'whitespace-pre-line text-zinc-500 text-[14px] leading-[1.8]'
               }>
-                <ClickableText text={liveText} autoPronounce={autoPronounce} showIpa={showIpa} />
+                <ClickableText text={liveText} autoPronounce={autoPronounce} showIpa={showIpa} pronunciationEnabled={pronunciationEnabled} />
                 <span className="inline-block w-[2px] h-4 bg-blue-400/50 ml-0.5 align-middle animate-pulse"></span>
               </div>
             </div>
           )}
 
           {messages.length === 0 && !liveText && (
-            <div className={compact
-              ? 'flex flex-1 items-center justify-center text-zinc-700 text-[12px]'
-              : 'flex flex-1 items-center justify-center text-zinc-600 text-[14px]'
-            }>
-              {isListening ? '正在聆听...' : '点击开始以启动实时转录和翻译'}
+            <div className="panel-empty">
+              <span className="empty-wave" aria-hidden="true">▂ ▄ ▆ ▃ ▅ ▂</span>
+              <p>{isListening ? 'Listening for speech…' : 'Ready when you are'}</p>
+              <span>{isListening ? 'Speech will appear here as it is recognized.' : '开始会话后，原文和译文会显示在这里。'}</span>
             </div>
           )}
 
           <div ref={bottomRef} />
         </div>
       </div>
-    </div>
+    </section>
   );
 });

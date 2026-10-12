@@ -1,144 +1,127 @@
 # MacTranslate Pro
 
-MacTranslate Pro is a local real-time English and Chinese interpretation app. It captures microphone audio in the browser, streams PCM audio to an Express server, runs speech recognition through a selectable ASR provider, translates the result with OpenAI, and sends live transcripts back to the React UI.
+An English–Chinese interpretation workspace with live transcription, translation, and word pronunciation.
 
-## Features
+I built MacTranslate Pro to keep both sides of a bilingual conversation readable in one place. Each panel preserves the recognized speech alongside its translation. Corrections remain visible, and the conversation stays available while I review earlier entries.
 
-- Real-time bilingual English and Chinese transcription.
-- Switchable ASR providers:
-  - Azure Speech, the stable default.
-  - Qwen3-ASR through DashScope, optional experimental provider.
-  - Soniox Realtime, optional experimental provider.
-- OpenAI-based transcript correction and translation.
-- Live partial transcription and final translated message panels.
-- Click-to-pronounce English words with dictionary lookup and TTS fallback.
-- Microphone and audio output device selection.
-- Local session timing and daily usage tracking in the browser.
+![MacTranslate Pro showing a fictional English–Chinese project handover](docs/images/workspace.png)
 
-## Tech Stack
+*The screenshot uses fixed fictional sample data. It is an interface preview, not a speech-recognition benchmark.*
 
-- React 19
-- Vite 6
-- Express 4
-- TypeScript
-- WebSocket audio streaming
-- Azure Speech SDK, OpenAI SDK, DashScope, and Soniox integrations
+## Try the workspace
 
-## Requirements
-
-- Node.js 20 or newer.
-- npm.
-- A browser with microphone permissions enabled.
-- API credentials for the providers you plan to use.
-
-## Setup
-
-Install dependencies:
+The sample runs without credentials or microphone access:
 
 ```bash
-npm install
+npm ci
+npm run demo
 ```
 
-Create your local environment file:
+Open [localhost:4173/demo](http://localhost:4173/demo). Replay the sample conversation, pause it, or export the visible entries as a text file. This route uses the same transcript panels as the live workspace, with pronunciation disabled. It does not connect to speech or translation services.
+
+## What it does
+
+- Displays English → Chinese and Chinese → English in separate, labeled panels.
+- Streams interim recognition and translation results before a final result arrives.
+- Shows changes between recognized and corrected speech.
+- Supports Azure Speech, Qwen3-ASR through DashScope, and Soniox Realtime.
+- Uses OpenAI for correction and translation, with a model selector in Settings.
+- Provides English word pronunciation, with dictionary lookup and TTS fallbacks.
+- Lets me select microphone and pronunciation output devices, track session time, and export the current transcript.
+
+I keep Azure as the default. The Qwen and Soniox integrations remain experimental. Their endpointing behavior differs, so the server keeps separate merge and commit settings for each provider.
+
+## Run a live session
+
+Requirements: Node.js 20.19+ or 22.12+, npm, a microphone-capable browser, and provider credentials. I use a local Express server on `127.0.0.1:3000`; the browser needs microphone permission.
 
 ```bash
+npm ci
 cp .env.example .env
 ```
 
-Fill in `.env` with your own credentials. Do not commit `.env`.
+Set these values in `.env`:
 
-Required variables:
-
-| Variable | Purpose |
+| Variable | Use |
 | --- | --- |
-| `AZURE_SPEECH_KEY` | Azure Speech recognition key. |
-| `AZURE_SPEECH_REGION` | Azure Speech region, such as `eastus`. |
-| `OPENAI_API_KEY` | OpenAI key for correction, translation, and optional TTS fallback. |
+| `AZURE_SPEECH_KEY` | Azure Speech recognition |
+| `AZURE_SPEECH_REGION` | Azure resource region |
+| `OPENAI_API_KEY` | Transcript correction, translation, and optional pronunciation fallback |
 
-Optional variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `DASHSCOPE_API_KEY` | Enables Qwen3-ASR. |
-| `DASHSCOPE_REGION` | Optional DashScope region override. |
-| `SONIOX_API_KEY` | Enables Soniox Realtime. |
-| `SONIOX_WS_URL` | Optional Soniox WebSocket endpoint override. |
-| `MW_MEDICAL_API_KEY` | Optional Merriam-Webster Medical Dictionary key. |
-| `MW_COLLEGIATE_API_KEY` | Optional Merriam-Webster Collegiate Dictionary key. |
-| `AZURE_TTS_VOICE` | Optional Azure TTS voice for pronunciation fallback. |
-| `OPENAI_TTS_MODEL` | Optional OpenAI TTS model for pronunciation fallback. |
-| `OPENAI_TTS_VOICE` | Optional OpenAI TTS voice for pronunciation fallback. |
-
-## Development
-
-Start the local dev server:
+Then start the app:
 
 ```bash
 npm run dev
 ```
 
-Open:
+Open [localhost:3000](http://localhost:3000), choose the microphone, and select **Start session**. **Settings** contains the ASR provider, translation model, and connection checks. Changing the ASR provider stops an active session; the next start uses the new provider.
 
-```text
-http://localhost:3000
-```
+The current startup health check requires the Azure variables even when an experimental provider is selected. In that case, the corresponding provider key is also needed.
 
-Build for production:
+### Optional configuration
+
+| Variable | Use |
+| --- | --- |
+| `DASHSCOPE_API_KEY` | Qwen3-ASR |
+| `DASHSCOPE_REGION` | Set to `cn` for the mainland endpoint; otherwise the international endpoint is used |
+| `SONIOX_API_KEY` | Soniox Realtime |
+| `SONIOX_WS_URL` | Custom Soniox WebSocket endpoint |
+| `MW_MEDICAL_API_KEY`, `MW_COLLEGIATE_API_KEY` | Dictionary pronunciation lookup |
+| `AZURE_TTS_VOICE` | Azure pronunciation fallback voice |
+| `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE` | OpenAI pronunciation fallback |
+
+Provider access and model availability depend on the configured accounts. The example environment file contains placeholders only.
+
+### Production build
 
 ```bash
 npm run build
+npm start
 ```
 
-Run the production server:
+On macOS, `./Start.command` builds the client and starts the local production server. `npm run preview` previews only the built frontend; live interpretation requires the Express server.
 
-```bash
-npm run start
-```
-
-On macOS, you can also run:
-
-```bash
-./Start.command
-```
-
-## Project Structure
+## How I structured it
 
 ```text
-.
-├── server.ts                 # Express server, WebSocket handling, ASR, translation, and TTS APIs
-├── asr-engines.ts            # ASR provider implementations
-├── src/
-│   ├── App.tsx               # Main React application
-│   ├── components/           # UI components
-│   ├── hooks/                # Microphone and speech hooks
-│   ├── services/             # Browser-side helper services
-│   └── worklets/             # Audio worklet for PCM capture
-├── .env.example              # Safe environment template
-├── package.json
-└── vite.config.ts
+Microphone → AudioWorklet → local WebSocket server
+                                  ↓
+                         selected ASR provider
+                                  ↓
+                      correction + translation
+                                  ↓
+                    original / translated panels
 ```
 
-## Security Notes
+The browser captures PCM audio and sends it to Express. The server manages ASR, conversation context, translation, pronunciation, and local session recording. I keep provider-specific timing in the server and keep UI display throttling in the client.
 
-The repository intentionally excludes local secrets, generated logs, cached pronunciation audio, transcripts, dependencies, and build output. The following paths are ignored by Git:
-
-- `.env`
-- `.env.*`
-- `logs/`
-- `node_modules/`
-- `dist/`
-- `.claude/`
-- local editor and OS metadata
-
-If a real API key was ever committed by mistake, revoke it in the provider dashboard and generate a new key.
-
-## Available Scripts
-
-| Command | Description |
+| Location | Responsibility |
 | --- | --- |
-| `npm run dev` | Start the local Express and Vite dev server. |
-| `npm run build` | Build the React client. |
-| `npm run start` | Start the production server. |
-| `npm run preview` | Preview the Vite build. |
-| `npm run clean` | Remove `dist/`. |
-| `npm run lint` | Type-check the project with TypeScript. |
+| `server.ts` | WebSocket sessions, translation, pronunciation, logs |
+| `asr-engines.ts` | ASR provider adapters |
+| `src/hooks/` | Microphone capture, audio streaming, connection recovery |
+| `src/components/TranslationPanel.tsx` | Transcript display, correction differences, pronunciation |
+| `src/demo/` | Isolated sample workspace and fictional conversation |
+| `src/services/transcriptExport.ts` | Chronological text export from the current panels |
+
+More detail: [architecture and tradeoffs](docs/architecture.md).
+
+## Data and practical limits
+
+The application runs locally, but live recognition and translation use cloud services. Audio goes to the selected ASR provider; text goes to OpenAI. Pronunciation can make dictionary or TTS requests. API keys stay in the server environment.
+
+The server writes diagnostic logs and session transcripts under `logs/`. It attempts to remove session transcript files older than 30 days at startup. These files, pronunciation caches, and `.env` are excluded from Git. Browser storage holds settings and daily usage counters.
+
+The interface retains the latest 200 entries per language panel. **Export** downloads those current entries in chronological order and labels translations that are still in progress. It is not an export of the complete server-side session archive.
+
+This is a local, single-user tool. There is no account system or public deployment hardening. Speech recognition and translation can make mistakes, particularly with names, numbers, accents, and specialized terminology. I treat the output as something to review, and I do not claim a measured accuracy or latency benchmark.
+
+## Checks
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+`lint` runs TypeScript checking. The automated tests cover transcript ordering, corrections, partial results, bilingual entries, and sample labeling. They do not validate cloud recognition or translation quality. My [manual check list](docs/testing.md) covers the sample UI and live-session checks separately.
